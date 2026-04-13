@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import { FixedSizeGrid, FixedSizeList } from 'react-window';
+
 import { Search, Grid3X3, List, Upload, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
