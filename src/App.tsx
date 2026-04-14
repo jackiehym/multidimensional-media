@@ -26,7 +26,12 @@ function AppLayout() {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <AppSidebar tags={store.allTags} activeTags={activeTags} onToggleTag={toggleTag} />
+        <AppSidebar
+          tags={store.allTags}
+          categories={store.allCategories}
+          activeTags={activeTags}
+          onToggleTag={toggleTag}
+        />
         <div className="flex-1 flex flex-col min-w-0">
           <Routes>
             <Route path="/" element={<Index activeTags={activeTags} />} />

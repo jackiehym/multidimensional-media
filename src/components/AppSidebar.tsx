@@ -1,38 +1,47 @@
 import { Film, Tags, Upload, ChevronDown } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from '@/components/ui/sidebar';
-import { type Tag, type TagCategory } from '@/lib/db';
+import { type Tag, type TagCategoryDef } from '@/lib/db';
 import { TagBadge } from './TagBadge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface AppSidebarProps {
   tags: Tag[];
+  categories: TagCategoryDef[];
   activeTags: string[];
   onToggleTag: (name: string) => void;
 }
 
-const categoryLabels: Record<TagCategory, string> = {
-  year: '📅 年份',
-  genre: '🎬 类型',
-  quality: '📺 画质',
-  custom: '🏷️ 自定义',
-};
-
-const categoryOrder: TagCategory[] = ['genre', 'quality', 'year', 'custom'];
-
-export function AppSidebar({ tags, activeTags, onToggleTag }: AppSidebarProps) {
+export function AppSidebar({ tags, categories, activeTags, onToggleTag }: AppSidebarProps) {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const grouped = categoryOrder.map(cat => ({
-    category: cat,
-    label: categoryLabels[cat],
-    items: tags.filter(t => t.category === cat),
-  }));
+  const categoryOrder = categories.length > 0
+    ? categories.map(c => c.key)
+    : ['genre', 'quality', 'year', 'custom'];
+
+  const grouped = categoryOrder.map(catKey => {
+    const catDef = categories.find(c => c.key === catKey);
+    return {
+      category: catKey,
+      label: catDef ? `${catDef.emoji} ${catDef.label}` : catKey,
+      items: tags.filter(t => t.category === catKey),
+    };
+  });
+
+  const handleToggleTag = (name: string) => {
+    // If not on /, navigate there first
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+    onToggleTag(name);
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -94,7 +103,7 @@ export function AppSidebar({ tags, activeTags, onToggleTag }: AppSidebarProps) {
                               name={tag.name}
                               category={tag.category}
                               active={activeTags.includes(tag.name)}
-                              onClick={() => onToggleTag(tag.name)}
+                              onClick={() => handleToggleTag(tag.name)}
                             />
                           ))}
                         </div>

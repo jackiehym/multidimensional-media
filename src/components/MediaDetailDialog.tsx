@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { type MediaItem, type Tag } from '@/lib/db';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { type MediaItem, type Tag, type TagCategoryDef } from '@/lib/db';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +11,17 @@ import { toast } from 'sonner';
 interface Props {
   item: MediaItem | null;
   tags: Tag[];
+  categories: TagCategoryDef[];
   open: boolean;
   onClose: () => void;
   onUpdate: (id: number, changes: Partial<MediaItem>) => void;
-  onAddTag: (ids: number[], tag: string) => void;
+  onAddTag: (ids: number[], tag: string, category?: string) => void;
   onRemoveTag: (ids: number[], tag: string) => void;
 }
 
-export function MediaDetailDialog({ item, tags, open, onClose, onUpdate, onAddTag, onRemoveTag }: Props) {
+export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpdate, onAddTag, onRemoveTag }: Props) {
   const [newTag, setNewTag] = useState('');
+  const [newTagCategory, setNewTagCategory] = useState('custom');
   const [editRating, setEditRating] = useState(false);
   const [ratingVal, setRatingVal] = useState('');
   const tagMap = new Map(tags.map(t => [t.name, t]));
@@ -27,10 +30,14 @@ export function MediaDetailDialog({ item, tags, open, onClose, onUpdate, onAddTa
 
   const handleAddTag = () => {
     if (newTag.trim() && item.id) {
-      onAddTag([item.id], newTag.trim());
+      // Check if tag already exists (case-insensitive) - if so, don't need category
+      const existing = tags.find(t => t.name.toLowerCase() === newTag.trim().toLowerCase());
+      onAddTag([item.id], newTag.trim(), existing ? undefined : newTagCategory);
       setNewTag('');
     }
   };
+
+  const isNewTag = newTag.trim() && !tags.some(t => t.name.toLowerCase() === newTag.trim().toLowerCase());
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
@@ -114,12 +121,26 @@ export function MediaDetailDialog({ item, tags, open, onClose, onUpdate, onAddTa
             </div>
             <div className="flex gap-2">
               <Input
-                className="h-8 text-sm"
+                className="h-8 text-sm flex-1"
                 placeholder="添加标签..."
                 value={newTag}
                 onChange={e => setNewTag(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAddTag()}
               />
+              {isNewTag && (
+                <Select value={newTagCategory} onValueChange={setNewTagCategory}>
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(c => (
+                      <SelectItem key={c.key} value={c.key}>
+                        {c.emoji} {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Button size="sm" onClick={handleAddTag}>
                 <Plus className="h-3 w-3" />
               </Button>

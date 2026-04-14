@@ -5,14 +5,11 @@ import { TagBadge } from '@/components/TagBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { type Tag, type TagCategory } from '@/lib/db';
-import { Pencil, Merge, Trash2, Tags } from 'lucide-react';
+import { type Tag, type TagCategoryDef } from '@/lib/db';
+import { Pencil, Merge, Trash2, Tags, Plus, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
-
-const categoryLabels: Record<TagCategory, string> = {
-  year: '年份', genre: '类型', quality: '画质', custom: '自定义',
-};
 
 export default function TagsPage() {
   const store = useMediaStore();
@@ -22,9 +19,22 @@ export default function TagsPage() {
   const [mergeSelected, setMergeSelected] = useState<string[]>([]);
   const [mergeTarget, setMergeTarget] = useState('');
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+  const [changingCategory, setChangingCategory] = useState<Tag | null>(null);
+  const [newCategoryKey, setNewCategoryKey] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCatKey, setNewCatKey] = useState('');
+  const [newCatLabel, setNewCatLabel] = useState('');
+  const [newCatEmoji, setNewCatEmoji] = useState('📁');
+  const [newCatColor, setNewCatColor] = useState('200 60% 50%');
 
   const tagCounts = new Map<string, number>();
   store.allMedia.forEach(m => m.tags.forEach(t => tagCounts.set(t, (tagCounts.get(t) || 0) + 1)));
+
+  const categoryOrder = store.allCategories.length > 0
+    ? store.allCategories.map(c => c.key)
+    : ['genre', 'quality', 'year', 'custom'];
+
+  const categoryLabels = new Map(store.allCategories.map(c => [c.key, `${c.emoji} ${c.label}`]));
 
   const handleRename = async () => {
     if (!renaming || !newName.trim()) return;
@@ -49,6 +59,24 @@ export default function TagsPage() {
     setSelectedForDelete(new Set());
   };
 
+  const handleChangeCategory = async () => {
+    if (!changingCategory || !newCategoryKey) return;
+    await store.changeTagCategory(changingCategory.name, newCategoryKey);
+    toast.success(`标签 "${changingCategory.name}" 已移至 ${categoryLabels.get(newCategoryKey) ?? newCategoryKey}`);
+    setChangingCategory(null);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCatKey.trim() || !newCatLabel.trim()) return;
+    await store.addCategory(newCatKey.trim(), newCatLabel.trim(), newCatEmoji, newCatColor);
+    toast.success(`已添加分类: ${newCatEmoji} ${newCatLabel.trim()}`);
+    setAddingCategory(false);
+    setNewCatKey('');
+    setNewCatLabel('');
+    setNewCatEmoji('📁');
+    setNewCatColor('200 60% 50%');
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <header className="h-14 flex items-center gap-3 border-b border-border px-4 shrink-0 bg-card/50 backdrop-blur">
@@ -56,6 +84,9 @@ export default function TagsPage() {
         <Tags className="h-5 w-5 text-primary" />
         <h1 className="text-lg font-bold text-foreground">标签管理</h1>
         <div className="flex-1" />
+        <Button size="sm" variant="outline" onClick={() => setAddingCategory(true)}>
+          <FolderPlus className="h-4 w-4 mr-1" />添加分类
+        </Button>
         <Button size="sm" variant="outline" onClick={() => setMerging(true)}>
           <Merge className="h-4 w-4 mr-1" />合并标签
         </Button>
@@ -68,14 +99,30 @@ export default function TagsPage() {
 
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          {(['genre', 'quality', 'year', 'custom'] as TagCategory[]).map(cat => {
-            const catTags = store.allTags.filter(t => t.category === cat);
-            if (catTags.length === 0) return null;
+          {categoryOrder.map(catKey => {
+            const catTags = store.allTags.filter(t => t.category === catKey);
+            const catDef = store.allCategories.find(c => c.key === catKey);
+            if (catTags.length === 0 && catDef?.builtIn) return null;
             return (
-              <div key={cat}>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                  {categoryLabels[cat]} ({catTags.length})
-                </h2>
+              <div key={catKey}>
+                <div className="flex items-center gap-2 mb-3">
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    {categoryLabels.get(catKey) ?? catKey} ({catTags.length})
+                  </h2>
+                  {catDef && !catDef.builtIn && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 text-[10px] text-destructive"
+                      onClick={async () => {
+                        await store.deleteCategory(catKey);
+                        toast.success(`已删除分类 "${catDef.label}"`);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-1">
                   {catTags.map(tag => (
                     <div
@@ -99,12 +146,24 @@ export default function TagsPage() {
                         size="sm"
                         variant="ghost"
                         className="opacity-0 group-hover:opacity-100"
+                        onClick={() => { setChangingCategory(tag); setNewCategoryKey(tag.category); }}
+                        title="修改分类"
+                      >
+                        <FolderPlus className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="opacity-0 group-hover:opacity-100"
                         onClick={() => { setRenaming(tag); setNewName(tag.name); }}
                       >
                         <Pencil className="h-3 w-3" />
                       </Button>
                     </div>
                   ))}
+                  {catTags.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-3 py-2">暂无标签</p>
+                  )}
                 </div>
               </div>
             );
@@ -129,6 +188,33 @@ export default function TagsPage() {
               placeholder="新标签名..."
             />
             <Button className="w-full" onClick={handleRename}>确认重命名</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change category dialog */}
+      <Dialog open={!!changingCategory} onOpenChange={v => !v && setChangingCategory(null)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">修改标签分类</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              标签: <TagBadge name={changingCategory?.name ?? ''} category={changingCategory?.category} />
+            </p>
+            <Select value={newCategoryKey} onValueChange={setNewCategoryKey}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择分类" />
+              </SelectTrigger>
+              <SelectContent>
+                {store.allCategories.map(c => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {c.emoji} {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button className="w-full" onClick={handleChangeCategory}>确认修改</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -168,6 +254,58 @@ export default function TagsPage() {
               disabled={mergeSelected.length < 2 || !mergeTarget.trim()}
             >
               合并 {mergeSelected.length} 个标签
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add category dialog */}
+      <Dialog open={addingCategory} onOpenChange={v => !v && setAddingCategory(false)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">添加标签分类</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">分类标识（英文，如 country）</label>
+              <Input
+                value={newCatKey}
+                onChange={e => setNewCatKey(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                placeholder="country"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">显示名称</label>
+              <Input
+                value={newCatLabel}
+                onChange={e => setNewCatLabel(e.target.value)}
+                placeholder="国家/地区"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">图标 Emoji</label>
+                <Input
+                  value={newCatEmoji}
+                  onChange={e => setNewCatEmoji(e.target.value)}
+                  placeholder="🌍"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">颜色 (HSL)</label>
+                <Input
+                  value={newCatColor}
+                  onChange={e => setNewCatColor(e.target.value)}
+                  placeholder="200 60% 50%"
+                />
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleAddCategory}
+              disabled={!newCatKey.trim() || !newCatLabel.trim()}
+            >
+              添加分类
             </Button>
           </div>
         </DialogContent>
