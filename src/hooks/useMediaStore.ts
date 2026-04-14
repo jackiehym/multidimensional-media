@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type MediaItem, type Tag, seedDefaultTags } from '@/lib/db';
+import { db, type MediaItem, type Tag, type TagCategoryDef, seedDefaultTags } from '@/lib/db';
 import { parseFilename, getTagCategoryForName } from '@/lib/filename-parser';
 import { useEffect } from 'react';
 
@@ -8,19 +8,33 @@ export function useMediaStore() {
 
   const allMedia = useLiveQuery(() => db.mediaItems.toArray()) ?? [];
   const allTags = useLiveQuery(() => db.tags.toArray()) ?? [];
+  const allCategories = useLiveQuery(() => db.tagCategories.toArray()) ?? [];
 
-  async function ensureTag(name: string): Promise<void> {
-    const existing = await db.tags.where('name').equals(name).first();
-    if (!existing) {
-      const { category, color } = getTagCategoryForName(name);
-      await db.tags.add({ name, category, color });
-    }
+  /** Find existing tag by case-insensitive match */
+  async function findTagCaseInsensitive(name: string): Promise<Tag | undefined> {
+    const exact = await db.tags.where('name').equals(name).first();
+    if (exact) return exact;
+    // Fallback: scan for case-insensitive match
+    const lower = name.toLowerCase();
+    const all = await db.tags.toArray();
+    return all.find(t => t.name.toLowerCase() === lower);
+  }
+
+  async function ensureTag(name: string, categoryHint?: string): Promise<string> {
+    const existing = await findTagCaseInsensitive(name);
+    if (existing) return existing.name; // return canonical name
+    const cat = categoryHint ?? getTagCategoryForName(name).category;
+    const catDef = await db.tagCategories.where('key').equals(cat).first();
+    const color = catDef?.color ?? '270 60% 55%';
+    await db.tags.add({ name, category: cat, color });
+    return name;
   }
 
   async function addMedia(item: Omit<MediaItem, 'id' | 'addedAt'>): Promise<number> {
     const parsed = parseFilename(item.filename);
-    const tags = [...new Set([...item.tags, ...parsed.tags])];
-    for (const t of tags) await ensureTag(t);
+    const rawTags = [...new Set([...item.tags, ...parsed.tags])];
+    const tags: string[] = [];
+    for (const t of rawTags) tags.push(await ensureTag(t));
     return db.mediaItems.add({
       ...item,
       tags,
@@ -34,8 +48,9 @@ export function useMediaStore() {
     const toAdd: MediaItem[] = [];
     for (const item of items) {
       const parsed = parseFilename(item.filename);
-      const tags = [...new Set([...(item.tags || []), ...parsed.tags])];
-      for (const t of tags) await ensureTag(t);
+      const rawTags = [...new Set([...(item.tags || []), ...parsed.tags])];
+      const tags: string[] = [];
+      for (const t of rawTags) tags.push(await ensureTag(t));
       toAdd.push({
         ...item,
         tags,
@@ -47,10 +62,12 @@ export function useMediaStore() {
     await db.mediaItems.bulkAdd(toAdd);
   }
 
-  async function addTagToItems(ids: number[], tagName: string) {
-    await ensureTag(tagName);
+  async function addTagToItems(ids: number[], tagName: string, category?: string) {
+    const canonical = await ensureTag(tagName, category);
     await db.mediaItems.where('id').anyOf(ids).modify(item => {
-      if (!item.tags.includes(tagName)) item.tags.push(tagName);
+      if (!item.tags.some(t => t.toLowerCase() === canonical.toLowerCase())) {
+        item.tags.push(canonical);
+      }
     });
   }
 
@@ -96,9 +113,28 @@ export function useMediaStore() {
     await db.mediaItems.where('id').anyOf(ids).delete();
   }
 
+  async function addCategory(key: string, label: string, emoji: string, color: string) {
+    const existing = await db.tagCategories.where('key').equals(key).first();
+    if (existing) return;
+    await db.tagCategories.add({ key, label, emoji, color, builtIn: false });
+  }
+
+  async function deleteCategory(key: string) {
+    // Move all tags in this category to 'custom'
+    await db.tags.where('category').equals(key).modify({ category: 'custom' });
+    await db.tagCategories.where('key').equals(key).delete();
+  }
+
+  async function changeTagCategory(tagName: string, newCategory: string) {
+    const catDef = await db.tagCategories.where('key').equals(newCategory).first();
+    const color = catDef?.color ?? '270 60% 55%';
+    await db.tags.where('name').equals(tagName).modify({ category: newCategory, color });
+  }
+
   return {
-    allMedia, allTags,
+    allMedia, allTags, allCategories,
     addMedia, bulkAddMedia, addTagToItems, removeTagFromItems,
     updateMediaItem, renameTag, mergeTags, deleteTags, deleteMedia,
+    addCategory, deleteCategory, changeTagCategory,
   };
 }
