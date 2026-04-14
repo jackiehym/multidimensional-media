@@ -230,6 +230,7 @@ export default function Index({ activeTags }: IndexProps) {
       <MediaDetailDialog
         item={detailItem}
         tags={store.allTags}
+        categories={store.allCategories}
         open={!!detailItem}
         onClose={() => setDetailItem(null)}
         onUpdate={store.updateMediaItem}
