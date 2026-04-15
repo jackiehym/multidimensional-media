@@ -165,7 +165,7 @@ export default function Index({ activeTags }: IndexProps) {
           <Upload className="h-4 w-4 mr-1" />导入
         </Button>
         <Button size="sm" variant="ghost" onClick={addDemoData}>
-          <Plus className="h-4 w-4 mr-1" />演示数据
+          <Plus className="h-4 w-4 mr-1" />演示数据(测试)
         </Button>
       </header>
 
