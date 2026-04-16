@@ -85,6 +85,20 @@ class ApiService {
     });
   }
 
+  async openFile(path: string): Promise<any> {
+    return this.request<any>('/api/media/open-file', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async openLocation(path: string): Promise<any> {
+    return this.request<any>('/api/media/open-location', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  }
+
   // 标签相关
   async getTags(): Promise<any[]> {
     return this.request<any[]>('/api/tags');

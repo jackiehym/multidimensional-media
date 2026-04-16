@@ -6,8 +6,9 @@ import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FolderOpen, Play, Plus, Star, Info, Tags, Film } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { api } from '@/services/api';
 
 interface Props {
   item: MediaItem | null;
@@ -25,27 +26,42 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
   const [newTagCategory, setNewTagCategory] = useState('custom');
   const [editRating, setEditRating] = useState(false);
   const [ratingVal, setRatingVal] = useState('');
+  const [localItem, setLocalItem] = useState<MediaItem | null>(item);
   const tagMap = new Map(tags.map(t => [t.name, t]));
 
-  if (!item) return null;
+  // 当传入的item变化时更新本地状态
+  useEffect(() => {
+    setLocalItem(item);
+  }, [item]);
+
+  if (!localItem) return null;
 
   const handleAddTag = () => {
-    if (newTag.trim() && item.id) {
+    if (newTag.trim() && localItem.id) {
       const existing = tags.find(t => t.name.toLowerCase() === newTag.trim().toLowerCase());
-      onAddTag([item.id], newTag.trim(), existing ? undefined : newTagCategory);
+      onAddTag([localItem.id], newTag.trim(), existing ? undefined : newTagCategory);
+      // 立即更新本地状态
+      setLocalItem(prev => {
+        if (!prev) return null;
+        if (!prev.tags.includes(newTag.trim())) {
+          return {
+            ...prev,
+            tags: [...prev.tags, newTag.trim()]
+          };
+        }
+        return prev;
+      });
       setNewTag('');
     }
   };
 
-  const handlePlay = () => {
-    // Try to open via custom protocol; fallback to instructions
-    const encoded = encodeURIComponent(item.path);
-    // Attempt tagflow:// protocol
-    window.location.href = `tagflow://open?path=${encoded}`;
-    toast.info(
-      '正在尝试调用本地播放器...\n如未响应，请确保已安装 tagflow-open 本地脚本，或手动打开文件：\n' + item.path,
-      { duration: 6000 }
-    );
+  const handlePlay = async () => {
+    try {
+      await api.openFile(localItem.path);
+      toast.success('正在尝试打开文件...');
+    } catch (error) {
+      toast.error('打开文件失败，请手动打开：\n' + localItem.path);
+    }
   };
 
   const isNewTag = newTag.trim() && !tags.some(t => t.name.toLowerCase() === newTag.trim().toLowerCase());
@@ -61,13 +77,13 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
             <Play className="h-7 w-7 text-primary-foreground ml-1" fill="currentColor" />
           </button>
           <div className="absolute bottom-3 left-4 right-4 z-10">
-            <p className="text-white font-semibold text-sm truncate">{item.filename}</p>
+            <p className="text-white font-semibold text-sm truncate">{localItem.filename}</p>
             <div className="flex items-center gap-3 mt-1 text-xs text-white/60">
-              {item.year && <span>{item.year}</span>}
-              {item.resolution && <span>{item.resolution}</span>}
-              {item.rating != null && (
+              {localItem.year && <span>{localItem.year}</span>}
+              {localItem.resolution && <span>{localItem.resolution}</span>}
+              {localItem.rating != null && (
                 <span className="flex items-center gap-0.5">
-                  <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />{item.rating}
+                  <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />{localItem.rating}
                 </span>
               )}
             </div>
@@ -83,29 +99,36 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
 
           <TabsContent value="info" className="space-y-4 mt-0">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">完整路径</p>
-              <div className="flex items-center gap-2">
-                <code className="text-xs bg-muted/50 px-2 py-1 rounded flex-1 truncate font-mono">
-                  {item.path}
-                </code>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => toast.info('此功能需配合本地脚本使用。请参阅文档配置 tagflow-open 命令。')}
-                >
-                  <FolderOpen className="h-3 w-3 mr-1" />打开位置
-                </Button>
-              </div>
+            <p className="text-xs text-muted-foreground mb-1">完整路径</p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-muted/50 px-2 py-1 rounded flex-1 truncate font-mono">
+                {localItem.path}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await api.openLocation(localItem.path);
+                    toast.success('已尝试打开文件位置');
+                  } catch (error) {
+                    toast.error('打开文件位置失败: ' + (error as Error).message);
+                  }
+                }}
+              >
+                <FolderOpen className="h-3 w-3 mr-1" />打开位置
+              </Button>
             </div>
+          </div>
 
             <div className="grid grid-cols-3 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">年份</p>
-                <p className="font-medium">{item.year ?? '未知'}</p>
+                <p className="font-medium">{localItem.year ?? '未知'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">分辨率</p>
-                <p className="font-medium">{item.resolution ?? '未知'}</p>
+                <p className="font-medium">{localItem.resolution ?? '未知'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">评分</p>
@@ -117,8 +140,8 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
                       value={ratingVal}
                       onChange={e => setRatingVal(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter' && item.id) {
-                          onUpdate(item.id, { rating: parseFloat(ratingVal) || undefined });
+                        if (e.key === 'Enter' && localItem.id) {
+                          onUpdate(localItem.id, { rating: parseFloat(ratingVal) || undefined });
                           setEditRating(false);
                         }
                       }}
@@ -128,10 +151,10 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
                 ) : (
                   <button
                     className="flex items-center gap-1 font-medium hover:text-primary"
-                    onClick={() => { setEditRating(true); setRatingVal(String(item.rating ?? '')); }}
+                    onClick={() => { setEditRating(true); setRatingVal(String(localItem.rating ?? '')); }}
                   >
-                    {item.rating != null ? (
-                      <><Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />{item.rating}</>
+                    {localItem.rating != null ? (
+                      <><Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />{localItem.rating}</>
                     ) : '点击评分'}
                   </button>
                 )}
@@ -139,20 +162,20 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              {item.tags.map(t => {
+              {localItem.tags.map(t => {
                 const tag = tagMap.get(t);
                 return <TagBadge key={t} name={t} category={tag?.category} size="md" />;
               })}
             </div>
 
             <p className="text-[10px] text-muted-foreground">
-              添加于 {item.addedAt ? new Date(item.addedAt).toLocaleDateString() : '未知'}
+              添加于 {localItem.addedAt ? new Date(localItem.addedAt).toLocaleDateString() : '未知'}
             </p>
           </TabsContent>
 
           <TabsContent value="tags" className="space-y-3 mt-0">
             <div className="flex flex-wrap gap-1.5">
-              {item.tags.map(t => {
+              {localItem.tags.map(t => {
                 const tag = tagMap.get(t);
                 return (
                   <TagBadge
@@ -160,11 +183,23 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
                     name={t}
                     category={tag?.category}
                     size="md"
-                    onRemove={() => item.id && onRemoveTag([item.id], t)}
+                    onRemove={() => {
+                      if (localItem.id) {
+                        onRemoveTag([localItem.id], t);
+                        // 立即更新本地状态
+                        setLocalItem(prev => {
+                          if (!prev) return null;
+                          return {
+                            ...prev,
+                            tags: prev.tags.filter(tag => tag !== t)
+                          };
+                        });
+                      }
+                    }}
                   />
                 );
               })}
-              {item.tags.length === 0 && <p className="text-xs text-muted-foreground">暂无标签</p>}
+              {localItem.tags.length === 0 && <p className="text-xs text-muted-foreground">暂无标签</p>}
             </div>
             <div className="flex gap-2">
               <Input

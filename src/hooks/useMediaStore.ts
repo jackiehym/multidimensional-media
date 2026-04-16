@@ -280,6 +280,16 @@ export function useMediaStore() {
     if (useApi) {
       try {
         await api.addTagToItems(ids, tagName, category);
+        // 立即更新本地状态
+        setApiMedia(prev => prev.map(item => {
+          if (ids.includes(item.id) && !item.tags.includes(tagName)) {
+            return {
+              ...item,
+              tags: [...item.tags, tagName]
+            };
+          }
+          return item;
+        }));
         // 重新加载数据
         await loadApiData();
       } catch (error) {
@@ -306,6 +316,16 @@ export function useMediaStore() {
     if (useApi) {
       try {
         await api.removeTagFromItems(ids, tagName);
+        // 立即更新本地状态
+        setApiMedia(prev => prev.map(item => {
+          if (ids.includes(item.id)) {
+            return {
+              ...item,
+              tags: item.tags.filter(t => t !== tagName)
+            };
+          }
+          return item;
+        }));
         // 重新加载数据
         await loadApiData();
       } catch (error) {

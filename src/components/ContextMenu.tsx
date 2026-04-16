@@ -23,9 +23,9 @@ export function ContextMenu({ x, y, onClose, onAddTag, onRemoveTag, onViewDetail
   }, [onClose]);
 
   const items = [
+    { icon: Info, label: '查看详情', action: onViewDetail },
     { icon: Plus, label: '添加标签', action: onAddTag },
     { icon: Minus, label: '移除标签', action: onRemoveTag },
-    { icon: Info, label: '查看详情', action: onViewDetail },
     { icon: Trash2, label: '删除', action: onDelete, destructive: true },
   ];
 
