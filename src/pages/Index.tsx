@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 
-import { Search, Grid3X3, List, Upload, Plus } from 'lucide-react';
+import { Search, Grid3X3, List, Upload, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -13,6 +13,7 @@ import { ImportDialog } from '@/components/ImportDialog';
 import { ContextMenu } from '@/components/ContextMenu';
 import { type MediaItem } from '@/lib/db';
 import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface IndexProps {
   activeTags: string[];
@@ -27,6 +28,7 @@ export default function Index({ activeTags }: IndexProps) {
   const [showImport, setShowImport] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; itemId: number } | null>(null);
   const [batchTagMode, setBatchTagMode] = useState<'add' | 'remove' | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
@@ -222,7 +224,7 @@ export default function Index({ activeTags }: IndexProps) {
         count={selected.size}
         onAddTag={tag => { store.addTagToItems(selectedIds, tag); setSelected(new Set()); }}
         onRemoveTag={tag => { store.removeTagFromItems(selectedIds, tag); setSelected(new Set()); }}
-        onDelete={() => { store.deleteMedia(selectedIds); setSelected(new Set()); }}
+        onDelete={() => setShowDeleteConfirm(true)}
         onClear={() => setSelected(new Set())}
       />
 
@@ -257,9 +259,39 @@ export default function Index({ activeTags }: IndexProps) {
             const item = store.allMedia.find(m => m.id === ctxMenu.itemId);
             if (item) setDetailItem(item);
           }}
-          onDelete={() => { store.deleteMedia(selectedIds); setSelected(new Set()); }}
+          onDelete={() => setShowDeleteConfirm(true)}
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              确认删除
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除选中的 <strong>{selected.size}</strong> 个媒体项吗？此操作不可恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                store.deleteMedia(selectedIds);
+                setSelected(new Set());
+                setShowDeleteConfirm(false);
+                toast.success(`已删除 ${selectedIds.length} 个媒体项`);
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
