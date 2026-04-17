@@ -10,6 +10,7 @@ import { MediaCard } from '@/components/MediaCard';
 import { MediaDetailDialog } from '@/components/MediaDetailDialog';
 import { BatchToolbar } from '@/components/BatchToolbar';
 import { ImportDialog } from '@/components/ImportDialog';
+import { AddMediaDialog } from '@/components/AddMediaDialog';
 import { ContextMenu } from '@/components/ContextMenu';
 import { type MediaItem } from '@/lib/db';
 import { toast } from 'sonner';
@@ -26,6 +27,7 @@ export default function Index({ activeTags }: IndexProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; itemId: number } | null>(null);
   const [batchTagMode, setBatchTagMode] = useState<'add' | 'remove' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -163,6 +165,9 @@ export default function Index({ activeTags }: IndexProps) {
             <List className="h-4 w-4" />
           </Button>
         </div>
+        <Button size="sm" variant="default" onClick={() => setShowAdd(true)}>
+          <Plus className="h-4 w-4 mr-1" />添加媒体
+        </Button>
         <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
           <Upload className="h-4 w-4 mr-1" />导入
         </Button>
@@ -245,6 +250,13 @@ export default function Index({ activeTags }: IndexProps) {
         open={showImport}
         onClose={() => setShowImport(false)}
         onImport={store.bulkAddMedia}
+      />
+
+      {/* Add single media dialog */}
+      <AddMediaDialog
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onAdd={store.addMedia}
       />
 
       {/* Context menu */}
