@@ -10,7 +10,6 @@ import { MediaCard } from '@/components/MediaCard';
 import { MediaDetailDialog } from '@/components/MediaDetailDialog';
 import { BatchToolbar } from '@/components/BatchToolbar';
 import { ImportDialog } from '@/components/ImportDialog';
-import { AddMediaDialog } from '@/components/AddMediaDialog';
 import { ContextMenu } from '@/components/ContextMenu';
 import { type MediaItem } from '@/lib/db';
 import { toast } from 'sonner';
@@ -27,7 +26,6 @@ export default function Index({ activeTags }: IndexProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null);
   const [showImport, setShowImport] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; itemId: number } | null>(null);
   const [batchTagMode, setBatchTagMode] = useState<'add' | 'remove' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -106,27 +104,6 @@ export default function Index({ activeTags }: IndexProps) {
 
   const selectedIds = [...selected];
 
-  const addDemoData = async () => {
-    const demos = [
-      'Inception.2010.2160p.BluRay.mkv',
-      'The.Matrix.1999.1080p.mkv',
-      'Interstellar.2014.2160p.HDR.mkv',
-      'Blade.Runner.2049.2017.1080p.mkv',
-      'Dune.2021.2160p.IMAX.mkv',
-      'Arrival.2016.1080p.mkv',
-      'The.Dark.Knight.2008.2160p.mkv',
-      'Parasite.2019.1080p.mkv',
-      'Mad.Max.Fury.Road.2015.2160p.mkv',
-      'Spirited.Away.2001.1080p.mkv',
-    ];
-    await store.bulkAddMedia(demos.map(f => ({
-      filename: f,
-      path: `/media/movies/${f}`,
-      tags: [],
-    })));
-    toast.success(`已添加 ${demos.length} 条演示数据`);
-  };
-
   // Virtual grid config
   const CARD_W = 180;
   const CARD_H = 320;
@@ -165,15 +142,11 @@ export default function Index({ activeTags }: IndexProps) {
             <List className="h-4 w-4" />
           </Button>
         </div>
-        <Button size="sm" variant="default" onClick={() => setShowAdd(true)}>
-          <Plus className="h-4 w-4 mr-1" />添加媒体
-        </Button>
+
         <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
           <Upload className="h-4 w-4 mr-1" />导入
         </Button>
-        <Button size="sm" variant="ghost" onClick={addDemoData}>
-          <Plus className="h-4 w-4 mr-1" />演示数据(测试)
-        </Button>
+
       </header>
 
       {/* Stats */}
@@ -187,7 +160,7 @@ export default function Index({ activeTags }: IndexProps) {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
             <p className="text-lg">暂无媒体项</p>
-            <p className="text-sm">点击"导入"按钮导入 JSON 数据，或添加演示数据</p>
+            <p className="text-sm">点击"导入"按钮导入视频文件</p>
           </div>
         ) : viewMode === 'compact' ? (
           <div className="space-y-0.5">
@@ -252,12 +225,7 @@ export default function Index({ activeTags }: IndexProps) {
         onImport={store.bulkAddMedia}
       />
 
-      {/* Add single media dialog */}
-      <AddMediaDialog
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        onAdd={store.addMedia}
-      />
+
 
       {/* Context menu */}
       {ctxMenu && (

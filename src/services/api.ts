@@ -187,7 +187,6 @@ class ApiService {
   async uploadFile(file: File): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
-
     try {
       const response = await fetch(`${this.baseUrl}/api/media/upload`, {
         method: 'POST',

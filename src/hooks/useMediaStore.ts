@@ -185,10 +185,11 @@ export function useMediaStore() {
           resolution: item.resolution ?? parsed.resolution,
         };
         
-        const result = await api.createMediaItem(mediaData);
+        await api.bulkCreateMediaItems([mediaData]);
         // 重新加载媒体数据
         await loadApiData();
-        return result.id;
+        // 由于批量创建不返回ID，返回0
+        return 0;
       } catch (error) {
         console.error('Error adding media:', error);
         // 回退到本地存储

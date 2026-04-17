@@ -1,9 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, FileJson, FolderOpen, Film } from 'lucide-react';
+import { Upload, FileJson, FolderOpen, Film, Loader2 } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
+import { api } from '@/services/api';
 
 interface ImportItem {
   filename: string;
@@ -29,66 +30,111 @@ function isVideo(name: string) {
 
 export function ImportDialog({ open, onClose, onImport }: Props) {
   const [importing, setImporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  // JSON state
-  const [jsonPreview, setJsonPreview] = useState<string>('');
-  const [jsonData, setJsonData] = useState<ImportItem[] | null>(null);
-  const jsonRef = useRef<HTMLInputElement>(null);
+
 
   // Folder state
   const [folderItems, setFolderItems] = useState<ImportItem[] | null>(null);
   const [folderName, setFolderName] = useState<string>('');
   const folderRef = useRef<HTMLInputElement>(null);
 
+  // File upload state
+  const [uploadItems, setUploadItems] = useState<ImportItem[] | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const reset = () => {
-    setJsonData(null); setJsonPreview('');
     setFolderItems(null); setFolderName('');
+    setUploadItems(null);
+    setUploadProgress(0);
   };
 
   const handleClose = () => { reset(); onClose(); };
 
-  const handleJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const json = JSON.parse(reader.result as string);
-        if (!Array.isArray(json)) throw new Error('JSON 必须为数组');
-        setJsonData(json);
-        setJsonPreview(`发现 ${json.length} 条记录`);
-      } catch (err: any) {
-        toast.error('JSON 解析失败: ' + err.message);
-        setJsonData(null);
-        setJsonPreview('');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleFolder = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const items: ImportItem[] = [];
-    let root = '';
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      if (!isVideo(f.name)) continue;
-      // webkitRelativePath: "rootFolder/sub/file.mkv"
-      const relPath = (f as any).webkitRelativePath || f.name;
-      if (!root) root = relPath.split('/')[0];
-      items.push({
-        filename: f.name,
-        path: '/' + relPath,
-        tags: [],
-      });
-    }
-    if (items.length === 0) {
+    console.log(files);
+    
+    const videoFiles = Array.from(files).filter(f => isVideo(f.name));
+    if (videoFiles.length === 0) {
       toast.error('未找到任何视频文件');
       return;
     }
-    setFolderName(root);
-    setFolderItems(items);
+    
+    setUploading(true);
+    setUploadProgress(0);
+    
+    try {
+      const uploadedItems: ImportItem[] = [];
+      let root = '';
+      for (let i = 0; i < videoFiles.length; i++) {
+        const file = videoFiles[i];
+        const response = await api.uploadFile(file);
+        
+        uploadedItems.push({
+          filename: response.filename,
+          path: response.path,
+          tags: [],
+        });
+        
+        if (!root) {
+          // webkitRelativePath: "rootFolder/sub/file.mkv"
+          const relPath = (file as any).webkitRelativePath || file.name;
+          root = relPath.split('/')[0];
+        }
+        
+        setUploadProgress(Math.round((i + 1) / videoFiles.length * 100));
+      }
+      
+      setFolderName(root || '上传的文件');
+      setFolderItems(uploadedItems);
+      toast.success(`成功上传 ${uploadedItems.length} 个文件`);
+    } catch (error) {
+      toast.error('上传失败: ' + (error as Error).message);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const videoFiles = Array.from(files).filter(f => isVideo(f.name));
+    if (videoFiles.length === 0) {
+      toast.error('未找到任何视频文件');
+      return;
+    }
+    
+    setUploading(true);
+    setUploadProgress(0);
+    
+    try {
+      const uploadedItems: ImportItem[] = [];
+      
+      for (let i = 0; i < videoFiles.length; i++) {
+        const file = videoFiles[i];
+        const response = await api.uploadFile(file);
+        uploadedItems.push({
+          filename: response.filename,
+          path: response.path,
+          tags: [],
+        });
+        
+        setUploadProgress(Math.round((i + 1) / videoFiles.length * 100));
+      }
+      
+      setUploadItems(uploadedItems);
+      toast.success(`成功上传 ${uploadedItems.length} 个文件`);
+    } catch (error) {
+      toast.error('上传失败: ' + (error as Error).message);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const doImport = async (items: ImportItem[]) => {
@@ -114,20 +160,75 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="folder" className="w-full">
+        <Tabs defaultValue="upload" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">
+              <Upload className="h-4 w-4 mr-1.5" />上传文件
+            </TabsTrigger>
             <TabsTrigger value="folder">
               <FolderOpen className="h-4 w-4 mr-1.5" />扫描文件夹
             </TabsTrigger>
-            <TabsTrigger value="json">
-              <FileJson className="h-4 w-4 mr-1.5" />JSON 高级
-            </TabsTrigger>
           </TabsList>
+
+          {/* File upload */}
+          <TabsContent value="upload" className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              上传视频文件到服务器，自动保存到后端媒体库。
+            </p>
+            <p className="text-xs text-muted-foreground">
+              支持格式：{VIDEO_EXTS.join(' / ')}
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept={VIDEO_EXTS.map(ext => 'video/*' + ext).join(',')}
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              <Upload className="h-4 w-4 mr-2" />选择视频文件
+            </Button>
+            
+            {uploading && (
+              <div className="space-y-2">
+                <div className="w-full bg-muted rounded-full h-2.5">
+                  <div 
+                    className="bg-primary h-2.5 rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-center text-muted-foreground">
+                  上传中... {uploadProgress}%
+                </p>
+              </div>
+            )}
+
+            {uploadItems && (
+              <div className="space-y-3">
+                <div className="text-sm bg-muted/40 rounded-md p-3 border border-border">
+                  <div className="flex items-center gap-2 text-primary font-medium">
+                    <Film className="h-4 w-4" />
+                    已上传 {uploadItems.length} 个视频
+                  </div>
+                  <div className="mt-2 max-h-32 overflow-y-auto text-xs text-muted-foreground space-y-0.5 font-mono">
+                    {uploadItems.slice(0, 8).map((it, i) => (
+                      <div key={i} className="truncate">{it.filename}</div>
+                    ))}
+                    {uploadItems.length > 8 && <div>... 还有 {uploadItems.length - 8} 个</div>}
+                  </div>
+                </div>
+                <Button className="w-full" onClick={() => doImport(uploadItems)} disabled={importing}>
+                  {importing ? '导入中...' : `导入 ${uploadItems.length} 个视频`}
+                </Button>
+              </div>
+            )}
+          </TabsContent>
 
           {/* Folder scan */}
           <TabsContent value="folder" className="space-y-4 mt-4">
             <p className="text-sm text-muted-foreground">
-              选择本地文件夹，自动扫描所有视频文件并解析年份、分辨率。
+              选择本地文件夹，自动上传所有视频文件到服务器。
             </p>
             <p className="text-xs text-muted-foreground">
               支持格式：{VIDEO_EXTS.join(' / ')}
@@ -142,16 +243,30 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
               onChange={handleFolder}
               className="hidden"
             />
-            <Button variant="outline" className="w-full" onClick={() => folderRef.current?.click()}>
+            <Button variant="outline" className="w-full" onClick={() => folderRef.current?.click()} disabled={uploading}>
               <FolderOpen className="h-4 w-4 mr-2" />选择文件夹
             </Button>
+            
+            {uploading && (
+              <div className="space-y-2">
+                <div className="w-full bg-muted rounded-full h-2.5">
+                  <div 
+                    className="bg-primary h-2.5 rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-center text-muted-foreground">
+                  上传中... {uploadProgress}%
+                </p>
+              </div>
+            )}
 
             {folderItems && (
               <div className="space-y-3">
                 <div className="text-sm bg-muted/40 rounded-md p-3 border border-border">
                   <div className="flex items-center gap-2 text-primary font-medium">
                     <Film className="h-4 w-4" />
-                    {folderName} · 找到 {folderItems.length} 个视频
+                    {folderName} · 已上传 {folderItems.length} 个视频
                   </div>
                   <div className="mt-2 max-h-32 overflow-y-auto text-xs text-muted-foreground space-y-0.5 font-mono">
                     {folderItems.slice(0, 8).map((it, i) => (
@@ -167,24 +282,7 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
             )}
           </TabsContent>
 
-          {/* JSON */}
-          <TabsContent value="json" className="space-y-4 mt-4">
-            <p className="text-sm text-muted-foreground">
-              预期格式：<code className="text-xs bg-muted px-1 py-0.5 rounded font-mono">
-                {'[{filename, path, tags?, year?, resolution?, rating?}]'}
-              </code>
-            </p>
-            <input ref={jsonRef} type="file" accept=".json" onChange={handleJsonFile} className="hidden" />
-            <Button variant="outline" className="w-full" onClick={() => jsonRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-2" />选择 JSON 文件
-            </Button>
-            {jsonPreview && <p className="text-sm text-primary font-medium">{jsonPreview}</p>}
-            {jsonData && (
-              <Button className="w-full" onClick={() => doImport(jsonData)} disabled={importing}>
-                {importing ? '导入中...' : `导入 ${jsonData.length} 条记录`}
-              </Button>
-            )}
-          </TabsContent>
+
         </Tabs>
       </DialogContent>
     </Dialog>
