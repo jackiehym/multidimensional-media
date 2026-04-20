@@ -26,10 +26,11 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
   const [newTagCategory, setNewTagCategory] = useState('custom');
   const [editRating, setEditRating] = useState(false);
   const [ratingVal, setRatingVal] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState(false);
+  const [displayNameVal, setDisplayNameVal] = useState('');
   const [localItem, setLocalItem] = useState<MediaItem | null>(item);
   const tagMap = new Map(tags.map(t => [t.name, t]));
 
-  // 当传入的item变化时更新本地状态
   useEffect(() => {
     setLocalItem(item);
   }, [item]);
@@ -61,6 +62,24 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
       toast.success('正在尝试打开文件...');
     } catch (error) {
       toast.error('打开文件失败，请手动打开：\n' + localItem.path);
+    }
+  };
+
+  const handleUpdateDisplayName = async () => {
+    if (!displayNameVal.trim() || !localItem.id) return;
+    
+    try {
+      await onUpdate(localItem.id, { display_name: displayNameVal.trim() });
+      setLocalItem(prev => prev ? { ...prev, display_name: displayNameVal.trim() } : null);
+      setEditDisplayName(false);
+      toast.success('显示名称已更新');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '更新失败';
+      if (errorMessage.includes('already exists') || errorMessage.includes('已存在')) {
+        toast.error('该显示名称已存在，请使用其他名称');
+      } else {
+        toast.error('更新显示名称失败：' + errorMessage);
+      }
     }
   };
 
@@ -98,6 +117,59 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
           </TabsList>
 
           <TabsContent value="info" className="space-y-4 mt-0">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">显示名称</p>
+              <div className="flex items-center gap-2">
+                {editDisplayName ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      className="h-8 text-sm flex-1"
+                      value={displayNameVal}
+                      onChange={e => setDisplayNameVal(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          handleUpdateDisplayName();
+                        } else if (e.key === 'Escape') {
+                          setEditDisplayName(false);
+                        }
+                      }}
+                      autoFocus
+                      placeholder="输入显示名称..."
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleUpdateDisplayName}
+                    >
+                      保存
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditDisplayName(false)}
+                    >
+                      取消
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-medium text-sm flex-1 truncate">
+                      {localItem.display_name || localItem.filename}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditDisplayName(true);
+                        setDisplayNameVal(localItem.display_name || localItem.filename);
+                      }}
+                    >
+                      编辑
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
             <div>
             <p className="text-xs text-muted-foreground mb-1">完整路径</p>
             <div className="flex items-center gap-2">
