@@ -28,7 +28,7 @@ export function MediaCard({ item, tags, selected, onSelect, onContextMenu, onDou
         )}
       >
         <Film className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="text-sm font-medium truncate flex-1 min-w-0">{item.filename}</span>
+        <span className="text-sm font-medium truncate flex-1 min-w-0">{item.display_name || item.filename}</span>
         {item.rating && (
           <span className="flex items-center gap-0.5 text-xs text-muted-foreground shrink-0">
             <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
@@ -70,7 +70,7 @@ export function MediaCard({ item, tags, selected, onSelect, onContextMenu, onDou
         )}
       </div>
       <div className="p-2 space-y-1.5">
-        <p className="text-xs font-medium truncate" title={item.filename}>{item.filename}</p>
+        <p className="text-xs font-medium truncate" title={item.display_name || item.filename}>{item.display_name || item.filename}</p>
         {item.rating != null && (
           <div className="flex items-center gap-0.5">
             <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />

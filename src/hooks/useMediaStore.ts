@@ -1,6 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type MediaItem, type Tag, type TagCategoryDef, seedDefaultTags } from '@/lib/db';
-import { parseFilename, getTagCategoryForName } from '@/lib/filename-parser';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/services/api';
 
@@ -173,48 +172,36 @@ export function useMediaStore() {
   async function addMedia(item: Omit<MediaItem, 'id' | 'addedAt'>): Promise<number> {
     if (useApi) {
       try {
-        const parsed = parseFilename(item.filename);
-        const rawTags = [...new Set([...item.tags, ...parsed.tags])];
         const tags: string[] = [];
-        for (const t of rawTags) tags.push(await ensureTag(t));
+        for (const t of item.tags) tags.push(await ensureTag(t));
         
         const mediaData = {
           ...item,
           tags,
-          year: item.year ?? parsed.year,
-          resolution: item.resolution ?? parsed.resolution,
         };
         
         await api.bulkCreateMediaItems([mediaData]);
         // 重新加载媒体数据
         await loadApiData();
-        // 由于批量创建不返回ID，返回0
+        // 由于批量创建不返回 ID，返回 0
         return 0;
       } catch (error) {
         console.error('Error adding media:', error);
         // 回退到本地存储
-        const parsed = parseFilename(item.filename);
-        const rawTags = [...new Set([...item.tags, ...parsed.tags])];
         const tags: string[] = [];
-        for (const t of rawTags) tags.push(await ensureTag(t));
+        for (const t of item.tags) tags.push(await ensureTag(t));
         return db.mediaItems.add({
           ...item,
           tags,
-          year: item.year ?? parsed.year,
-          resolution: item.resolution ?? parsed.resolution,
           addedAt: new Date(),
         });
       }
     } else {
-      const parsed = parseFilename(item.filename);
-      const rawTags = [...new Set([...item.tags, ...parsed.tags])];
       const tags: string[] = [];
-      for (const t of rawTags) tags.push(await ensureTag(t));
+      for (const t of item.tags) tags.push(await ensureTag(t));
       return db.mediaItems.add({
         ...item,
         tags,
-        year: item.year ?? parsed.year,
-        resolution: item.resolution ?? parsed.resolution,
         addedAt: new Date(),
       });
     }
@@ -225,15 +212,11 @@ export function useMediaStore() {
       try {
         const processedItems = [];
         for (const item of items) {
-          const parsed = parseFilename(item.filename);
-          const rawTags = [...new Set([...(item.tags || []), ...parsed.tags])];
           const tags: string[] = [];
-          for (const t of rawTags) tags.push(await ensureTag(t));
+          for (const t of (item.tags || [])) tags.push(await ensureTag(t));
           processedItems.push({
             ...item,
             tags,
-            year: item.year ?? parsed.year,
-            resolution: item.resolution ?? parsed.resolution,
           });
         }
         await api.bulkCreateMediaItems(processedItems);
@@ -244,15 +227,11 @@ export function useMediaStore() {
         // 回退到本地存储
         const toAdd: MediaItem[] = [];
         for (const item of items) {
-          const parsed = parseFilename(item.filename);
-          const rawTags = [...new Set([...(item.tags || []), ...parsed.tags])];
           const tags: string[] = [];
-          for (const t of rawTags) tags.push(await ensureTag(t));
+          for (const t of (item.tags || [])) tags.push(await ensureTag(t));
           toAdd.push({
             ...item,
             tags,
-            year: item.year ?? parsed.year,
-            resolution: item.resolution ?? parsed.resolution,
             addedAt: new Date(),
           });
         }
@@ -261,15 +240,11 @@ export function useMediaStore() {
     } else {
       const toAdd: MediaItem[] = [];
       for (const item of items) {
-        const parsed = parseFilename(item.filename);
-        const rawTags = [...new Set([...(item.tags || []), ...parsed.tags])];
         const tags: string[] = [];
-        for (const t of rawTags) tags.push(await ensureTag(t));
+        for (const t of (item.tags || [])) tags.push(await ensureTag(t));
         toAdd.push({
           ...item,
           tags,
-          year: item.year ?? parsed.year,
-          resolution: item.resolution ?? parsed.resolution,
           addedAt: new Date(),
         });
       }

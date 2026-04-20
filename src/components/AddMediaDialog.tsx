@@ -3,10 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, X, FilePlus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import type { MediaItem } from '@/lib/db';
-import { parseFilename } from '@/lib/filename-parser';
 
 interface Props {
   open: boolean;
@@ -23,14 +22,6 @@ export function AddMediaDialog({ open, onClose, onAdd }: Props) {
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-
-  // Auto-parse from filename
-  useEffect(() => {
-    if (!filename) return;
-    const parsed = parseFilename(filename);
-    if (parsed.year && !year) setYear(String(parsed.year));
-    if (parsed.resolution && !resolution) setResolution(parsed.resolution);
-  }, [filename]);
 
   const reset = () => {
     setFilename(''); setPath(''); setYear(''); setResolution('');
@@ -90,7 +81,6 @@ export function AddMediaDialog({ open, onClose, onAdd }: Props) {
               value={filename}
               onChange={e => setFilename(e.target.value)}
             />
-            <p className="text-[10px] text-muted-foreground mt-1">将自动解析年份和分辨率</p>
           </div>
 
           <div>

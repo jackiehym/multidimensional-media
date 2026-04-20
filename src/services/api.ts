@@ -204,6 +204,14 @@ class ApiService {
     }
   }
 
+  // 删除文件
+  async deleteFile(filename: string): Promise<any> {
+    return this.request<any>('/api/media/delete-file', {
+      method: 'POST',
+      body: JSON.stringify({ filename }),
+    });
+  }
+
   // 健康检查
   async healthCheck(): Promise<boolean> {
     try {

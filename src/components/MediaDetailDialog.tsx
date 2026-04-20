@@ -77,7 +77,7 @@ export function MediaDetailDialog({ item, tags, categories, open, onClose, onUpd
             <Play className="h-7 w-7 text-primary-foreground ml-1" fill="currentColor" />
           </button>
           <div className="absolute bottom-3 left-4 right-4 z-10">
-            <p className="text-white font-semibold text-sm truncate">{localItem.filename}</p>
+            <p className="text-white font-semibold text-sm truncate">{localItem.display_name || localItem.filename}</p>
             <div className="flex items-center gap-3 mt-1 text-xs text-white/60">
               {localItem.year && <span>{localItem.year}</span>}
               {localItem.resolution && <span>{localItem.resolution}</span>}

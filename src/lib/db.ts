@@ -3,6 +3,7 @@ import Dexie, { type Table } from 'dexie';
 export interface MediaItem {
   id?: number;
   filename: string;
+  display_name?: string;
   path: string;
   tags: string[];
   year?: number;

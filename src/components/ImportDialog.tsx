@@ -13,6 +13,7 @@ interface ImportItem {
   year?: number;
   resolution?: string;
   rating?: number;
+  display_name?: string;  // 显示文件名
 }
 
 interface Props {
@@ -32,6 +33,7 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
   const [importing, setImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [imported, setImported] = useState(false);  // 标记是否已导入
 
 
 
@@ -44,13 +46,44 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
   const [uploadItems, setUploadItems] = useState<ImportItem[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => {
+  const reset = async () => {
+    // 只有未导入的文件才删除
+    if (!imported) {
+      // 如果有未导入的文件，删除它们
+      if (uploadItems && uploadItems.length > 0) {
+        try {
+          for (const item of uploadItems) {
+            const filename = item.path.split('/').pop();
+            if (filename) {
+              await api.deleteFile(filename).catch(console.error);
+            }
+          }
+        } catch (err) {
+          console.error('清理未导入的文件失败:', err);
+        }
+      }
+      
+      if (folderItems && folderItems.length > 0) {
+        try {
+          for (const item of folderItems) {
+            const filename = item.path.split('/').pop();
+            if (filename) {
+              await api.deleteFile(filename).catch(console.error);
+            }
+          }
+        } catch (err) {
+          console.error('清理未导入的文件失败:', err);
+        }
+      }
+    }
+    
     setFolderItems(null); setFolderName('');
     setUploadItems(null);
     setUploadProgress(0);
+    setImported(false);
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = async () => { await reset(); onClose(); };
 
   const handleFolder = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -69,14 +102,16 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
     try {
       const uploadedItems: ImportItem[] = [];
       let root = '';
+      
       for (let i = 0; i < videoFiles.length; i++) {
         const file = videoFiles[i];
         const response = await api.uploadFile(file);
         
         uploadedItems.push({
-          filename: response.filename,
+          filename: response.filename,  // 存储文件名（带 UUID）
           path: response.path,
           tags: [],
+          display_name: response.display_filename,  // 显示文件名（原始文件名）
         });
         
         if (!root) {
@@ -118,10 +153,12 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
       for (let i = 0; i < videoFiles.length; i++) {
         const file = videoFiles[i];
         const response = await api.uploadFile(file);
+        
         uploadedItems.push({
-          filename: response.filename,
+          filename: response.filename,  // 存储文件名（带 UUID）
           path: response.path,
           tags: [],
+          display_name: response.display_filename,  // 显示文件名（原始文件名）
         });
         
         setUploadProgress(Math.round((i + 1) / videoFiles.length * 100));
@@ -142,9 +179,12 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
     try {
       await onImport(items);
       toast.success(`成功导入 ${items.length} 条记录`);
-      handleClose();
+      setImported(true);  // 标记已导入
+      setUploadItems(null);  // 清空上传列表
+      setFolderItems(null);  // 清空文件夹列表
+      onClose();  // 直接关闭，不执行清理（因为已导入）
     } catch (err: any) {
-      toast.error('导入失败: ' + err.message);
+      toast.error('导入失败：' + err.message);
     } finally {
       setImporting(false);
     }
@@ -213,7 +253,7 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
                   </div>
                   <div className="mt-2 max-h-32 overflow-y-auto text-xs text-muted-foreground space-y-0.5 font-mono">
                     {uploadItems.slice(0, 8).map((it, i) => (
-                      <div key={i} className="truncate">{it.filename}</div>
+                      <div key={i} className="truncate">{it.display_name || it.filename}</div>
                     ))}
                     {uploadItems.length > 8 && <div>... 还有 {uploadItems.length - 8} 个</div>}
                   </div>
@@ -270,7 +310,7 @@ export function ImportDialog({ open, onClose, onImport }: Props) {
                   </div>
                   <div className="mt-2 max-h-32 overflow-y-auto text-xs text-muted-foreground space-y-0.5 font-mono">
                     {folderItems.slice(0, 8).map((it, i) => (
-                      <div key={i} className="truncate">{it.filename}</div>
+                      <div key={i} className="truncate">{it.display_name || it.filename}</div>
                     ))}
                     {folderItems.length > 8 && <div>... 还有 {folderItems.length - 8} 个</div>}
                   </div>
